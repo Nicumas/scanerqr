@@ -69,8 +69,8 @@
   <div id="result">Нажмите «Начать сканирование»</div>
   <button class="btn" onclick="startScanner()">Начать сканирование</button>
 
+  <!-- Подключаем одну версию html5-qrcode -->
   <script src="https://unpkg.com/html5-qrcode@2.3.7" type="text/javascript"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <script>
     let html5QrCode;
     let scanning = false;
@@ -85,10 +85,20 @@
       try {
         html5QrCode = new Html5Qrcode("scanner-container");
 
+        const devices = await Html5Qrcode.getCameras();
+        if (!devices || devices.length === 0) {
+          resultElem.innerText = "❌ Камера не найдена";
+          scanning = false;
+          return;
+        }
+        // выбираем заднюю камеру (если в названии есть 'back')
+        const backCamera = devices.find(d => d.label.toLowerCase().includes('back')) || devices[0];
+        const cameraId = backCamera.id;
+
         await html5QrCode.start(
-          { facingMode: { exact: "environment" } },  // задняя камера
+          { deviceId: { exact: cameraId } },
           { fps: 10, qrbox: 250 },
-          async (qrCodeMessage) => {
+          async qrCodeMessage => {
             resultElem.innerText = `✅ QR-код: ${qrCodeMessage}`;
             await html5QrCode.stop();
             scanning = false;
@@ -96,7 +106,7 @@
               Telegram.WebApp.sendData(qrCodeMessage);
             }
           },
-          (errorMessage) => {
+          errorMessage => {
             resultElem.innerText = "🔍 Сканирую...";
           }
         );
