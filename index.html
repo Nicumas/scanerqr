@@ -38,6 +38,9 @@
       border-radius: 12px;
       overflow: hidden;
       background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     #result {
@@ -61,60 +64,47 @@
     .btn:hover {
       background-color: var(--button-hover);
     }
+
+    input[type=file] {
+      display: none;
+    }
   </style>
 </head>
 <body>
   <h1>Сканируй чек — получи кофе ☕</h1>
-  <div id="scanner-container"></div>
+  <div id="scanner-container">
+    <p>📷 Фото чека</p>
+  </div>
   <div id="result">Нажмите «Начать сканирование»</div>
   <button class="btn" onclick="startScanner()">Начать сканирование</button>
 
-  <!-- Подключаем одну версию html5-qrcode -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.7" type="text/javascript"></script>
+  <!-- Скрытый input для фото с задней камеры -->
+  <input type="file" id="file-input" accept="image/*" capture="environment" />
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.7"></script>
   <script>
-    let html5QrCode;
-    let scanning = false;
+    const resultElem = document.getElementById('result');
+    const fileInput = document.getElementById('file-input');
 
-    async function startScanner() {
-      if (scanning) return;
-      scanning = true;
-
-      const resultElem = document.getElementById("result");
-      resultElem.innerText = "⏳ Инициализация камеры...";
-
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      resultElem.innerText = '🔍 Обработка фото...';
       try {
-        html5QrCode = new Html5Qrcode("scanner-container");
-
-        const devices = await Html5Qrcode.getCameras();
-        if (!devices || devices.length === 0) {
-          resultElem.innerText = "❌ Камера не найдена";
-          scanning = false;
-          return;
+        const html5QrCode = new Html5Qrcode(/*не нужен контейнер*/);
+        const qrText = await html5QrCode.scanFile(file, true);
+        resultElem.innerText = `✅ QR-код: ${qrText}`;
+        if (window.Telegram && Telegram.WebApp) {
+          Telegram.WebApp.sendData(qrText);
         }
-        // выбираем заднюю камеру (если в названии есть 'back')
-        const backCamera = devices.find(d => d.label.toLowerCase().includes('back')) || devices[0];
-        const cameraId = backCamera.id;
-
-        await html5QrCode.start(
-          { deviceId: { exact: cameraId } },
-          { fps: 10, qrbox: 250 },
-          async qrCodeMessage => {
-            resultElem.innerText = `✅ QR-код: ${qrCodeMessage}`;
-            await html5QrCode.stop();
-            scanning = false;
-            if (window.Telegram && Telegram.WebApp) {
-              Telegram.WebApp.sendData(qrCodeMessage);
-            }
-          },
-          errorMessage => {
-            resultElem.innerText = "🔍 Сканирую...";
-          }
-        );
-
       } catch (err) {
-        resultElem.innerText = `❌ Ошибка камеры: ${err}`;
-        scanning = false;
+        resultElem.innerText = `❌ Не удалось прочитать QR: ${err}`;
       }
+    });
+
+    function startScanner() {
+      // Открываем селектор для фото (запуск задней камеры на мобилке)
+      fileInput.click();
     }
   </script>
 </body>
