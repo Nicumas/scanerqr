@@ -37,6 +37,7 @@
       border: 4px solid var(--accent-color);
       border-radius: 12px;
       overflow: hidden;
+      background: #fff;
     }
 
     #result {
@@ -65,45 +66,46 @@
 <body>
   <h1>Сканируй чек — получи кофе ☕</h1>
   <div id="scanner-container"></div>
-  <div id="result">Ожидание сканирования...</div>
+  <div id="result">Нажмите «Начать сканирование»</div>
   <button class="btn" onclick="startScanner()">Начать сканирование</button>
 
-  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.7" type="text/javascript"></script>
   <script>
+    // Telegram WebApp
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+
     let html5QrCode;
 
     function startScanner() {
-      const qrRegion = document.getElementById("scanner-container");
-      html5QrCode = new Html5Qrcode("scanner-container");
+      document.getElementById('result').innerText = 'Идёт сканирование...';
+      html5QrCode = new Html5Qrcode('scanner-container');
 
       Html5Qrcode.getCameras().then(devices => {
         if (devices && devices.length) {
           const cameraId = devices[0].id;
-
           html5QrCode.start(
             cameraId,
-            {
-              fps: 10,
-              qrbox: 250
-            },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
             qrCodeMessage => {
-              document.getElementById("result").innerText = `QR: ${qrCodeMessage}`;
+              // Показать результат
+              document.getElementById('result').innerText = `QR: ${qrCodeMessage}`;
+              // Остановить сканер
               html5QrCode.stop();
-
-              // Отправка QR кода обратно в Telegram WebApp
-              if (window.Telegram && Telegram.WebApp) {
-                Telegram.WebApp.sendData(qrCodeMessage);
-              }
+              // Отправить данные в бота
+              tg.sendData(qrCodeMessage);
             },
-            error => {
-              // Периодические ошибки — можно игнорировать
+            errorMessage => {
+              // Игнорируем промежуточные ошибки
             }
           ).catch(err => {
-            document.getElementById("result").innerText = `Ошибка запуска камеры: ${err}`;
+            document.getElementById('result').innerText = `Ошибка камеры: ${err}`;
           });
+        } else {
+          document.getElementById('result').innerText = 'Камера не найдена';
         }
       }).catch(err => {
-        document.getElementById("result").innerText = `Ошибка доступа к камере: ${err}`;
+        document.getElementById('result').innerText = `Нет доступа к камере: ${err}`;
       });
     }
   </script>
