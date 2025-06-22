@@ -23,17 +23,19 @@
       align-items: center;
       justify-content: center;
       height: 100vh;
+      text-align: center;
+      padding: 16px;
     }
 
     h1 {
       color: var(--accent-color);
-      font-size: 2em;
-      margin-bottom: 0.5em;
+      font-size: 1.8em;
+      margin-bottom: 1em;
     }
 
     #scanner-container {
-      width: 300px;
-      height: 300px;
+      width: 280px;
+      height: 280px;
       border: 4px solid var(--accent-color);
       border-radius: 12px;
       overflow: hidden;
@@ -42,8 +44,7 @@
 
     #result {
       margin-top: 1em;
-      font-size: 1.2em;
-      text-align: center;
+      font-size: 1.1em;
     }
 
     .btn {
@@ -51,7 +52,6 @@
       border: none;
       color: white;
       padding: 12px 24px;
-      text-align: center;
       font-size: 16px;
       border-radius: 8px;
       cursor: pointer;
@@ -64,50 +64,71 @@
   </style>
 </head>
 <body>
-  <h1>Сканируй чек — получи кофе ☕</h1>
+  <h1>Сканируй чек —<br>получи кофе ☕</h1>
   <div id="scanner-container"></div>
   <div id="result">Нажмите «Начать сканирование»</div>
-  <button class="btn" onclick="startScanner()">Начать сканирование</button>
+  <button class="btn" id="scanBtn">Начать сканирование</button>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.7" type="text/javascript"></script>
   <script>
-    // Telegram WebApp
-    const tg = window.Telegram.WebApp;
-    tg.expand();
-
     let html5QrCode;
+    let isScanning = false;
 
-    function startScanner() {
-      document.getElementById('result').innerText = 'Идёт сканирование...';
+    const tg = window.Telegram.WebApp;
+    tg.ready && tg.expand();
+
+    const scanButton = document.getElementById('scanBtn');
+    const resultElem = document.getElementById('result');
+
+    async function startScanner() {
+      if (isScanning) {
+        resultElem.innerText = 'Сканирование уже запущено...';
+        return;
+      }
+
+      resultElem.innerText = 'Запрашиваем доступ к камере...';
+
+      const devices = await Html5Qrcode.getCameras().catch(err => {
+        resultElem.innerText = `Ошибка камеры: ${err}`;
+        return [];
+      });
+
+      if (!devices.length) {
+        resultElem.innerText = 'Камера не найдена или доступ запрещён.';
+        return;
+      }
+
+      const cameraId = devices[0].id;
       html5QrCode = new Html5Qrcode('scanner-container');
+      isScanning = true;
 
-      Html5Qrcode.getCameras().then(devices => {
-        if (devices && devices.length) {
-          const cameraId = devices[0].id;
-          html5QrCode.start(
-            cameraId,
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            qrCodeMessage => {
-              // Показать результат
-              document.getElementById('result').innerText = `QR: ${qrCodeMessage}`;
-              // Остановить сканер
-              html5QrCode.stop();
-              // Отправить данные в бота
+      html5QrCode.start(
+        cameraId,
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        qrCodeMessage => {
+          html5QrCode.stop().then(() => {
+            html5QrCode.clear();
+            isScanning = false;
+            resultElem.innerText = `✅ Найден QR: ${qrCodeMessage}`;
+            if (tg.sendData) {
               tg.sendData(qrCodeMessage);
-            },
-            errorMessage => {
-              // Игнорируем промежуточные ошибки
+            } else {
+              console.log("TG sendData недоступен. Данные: ", qrCodeMessage);
             }
-          ).catch(err => {
-            document.getElementById('result').innerText = `Ошибка камеры: ${err}`;
           });
-        } else {
-          document.getElementById('result').innerText = 'Камера не найдена';
+        },
+        error => {
+          // Не показываем временные ошибки
         }
+      ).then(() => {
+        resultElem.innerText = '📷 Идёт сканирование...';
       }).catch(err => {
-        document.getElementById('result').innerText = `Нет доступа к камере: ${err}`;
+        resultElem.innerText = `Ошибка запуска сканера: ${err}`;
+        isScanning = false;
       });
     }
+
+    scanButton.addEventListener('click', startScanner);
   </script>
 </body>
 </html>
