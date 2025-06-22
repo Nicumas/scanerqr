@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -72,39 +71,46 @@
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <script>
     let html5QrCode;
+    let scanning = false;
 
-    function startScanner() {
-      const qrRegion = document.getElementById("scanner-container");
-      html5QrCode = new Html5Qrcode("scanner-container");
+    async function startScanner() {
+      if (scanning) return;
 
-      Html5Qrcode.getCameras().then(devices => {
-        if (devices && devices.length > 0) {
-          const cameraId = devices[0].id;
+      scanning = true;
+      const resultElem = document.getElementById("result");
+      resultElem.innerText = "⏳ Запуск камеры...";
 
-          html5QrCode.start(
-            { deviceId: { exact: cameraId } },
-            {
-              fps: 10,
-              qrbox: { width: 250, height: 250 }
-            },
-            qrCodeMessage => {
-              document.getElementById("result").innerText = `QR: ${qrCodeMessage}`;
-              html5QrCode.stop().then(() => {
-                if (window.Telegram && Telegram.WebApp) {
-                  Telegram.WebApp.sendData(qrCodeMessage);
-                }
-              });
-            },
-            error => {}
-          ).catch(err => {
-            document.getElementById("result").innerText = `Ошибка запуска камеры: ${err}`;
-          });
-        } else {
-          document.getElementById("result").innerText = "Не найдены доступные камеры.";
+      try {
+        const qrRegion = document.getElementById("scanner-container");
+        html5QrCode = new Html5Qrcode("scanner-container");
+
+        const devices = await Html5Qrcode.getCameras();
+        if (!devices || devices.length === 0) {
+          resultElem.innerText = "❌ Камера не найдена";
+          scanning = false;
+          return;
         }
-      }).catch(err => {
-        document.getElementById("result").innerText = `Ошибка доступа к камере: ${err}`;
-      });
+
+        const cameraId = devices[0].id;
+
+        await html5QrCode.start(
+          cameraId,
+          { fps: 10, qrbox: 250 },
+          async qrCodeMessage => {
+            resultElem.innerText = `📦 QR-код: ${qrCodeMessage}`;
+            await html5QrCode.stop();
+            scanning = false;
+
+            if (window.Telegram && Telegram.WebApp) {
+              Telegram.WebApp.sendData(qrCodeMessage);
+            }
+          },
+          error => {}
+        );
+      } catch (err) {
+        resultElem.innerText = `❌ Ошибка: ${err}`;
+        scanning = false;
+      }
     }
   </script>
 </body>
