@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Сканер QR для кофе</title>
+  <style>
+    :root {
+      --bg-color: #f6f2ec;
+      --accent-color: #6f4e37;
+      --text-color: #3b2e2a;
+      --button-color: #a9745b;
+      --button-hover: #8b5e45;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    h1 {
+      color: var(--accent-color);
+      font-size: 2em;
+      margin-bottom: 0.5em;
+    }
+
+    #scanner-container {
+      width: 300px;
+      height: 300px;
+      border: 4px solid var(--accent-color);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    #result {
+      margin-top: 1em;
+      font-size: 1.2em;
+      text-align: center;
+    }
+
+    .btn {
+      background-color: var(--button-color);
+      border: none;
+      color: white;
+      padding: 12px 24px;
+      text-align: center;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 1em;
+    }
+
+    .btn:hover {
+      background-color: var(--button-hover);
+    }
+  </style>
+</head>
+<body>
+  <h1>Сканируй чек — получи кофе ☕</h1>
+  <div id="scanner-container"></div>
+  <div id="result">Ожидание сканирования...</div>
+  <button class="btn" onclick="startScanner()">Начать сканирование</button>
+
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script>
+    let html5QrCode;
+
+    function startScanner() {
+      const qrRegion = document.getElementById("scanner-container");
+      html5QrCode = new Html5Qrcode("scanner-container");
+
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
+          const cameraId = devices[0].id;
+
+          html5QrCode.start(
+            cameraId,
+            {
+              fps: 10,
+              qrbox: 250
+            },
+            qrCodeMessage => {
+              document.getElementById("result").innerText = `QR: ${qrCodeMessage}`;
+              html5QrCode.stop();
+
+              // Отправка QR кода обратно в Telegram WebApp
+              if (window.Telegram && Telegram.WebApp) {
+                Telegram.WebApp.sendData(qrCodeMessage);
+              }
+            },
+            error => {
+              // Периодические ошибки — можно игнорировать
+            }
+          ).catch(err => {
+            document.getElementById("result").innerText = `Ошибка запуска камеры: ${err}`;
+          });
+        }
+      }).catch(err => {
+        document.getElementById("result").innerText = `Ошибка доступа к камере: ${err}`;
+      });
+    }
+  </script>
+</body>
+</html>
