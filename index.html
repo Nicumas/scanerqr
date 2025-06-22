@@ -73,47 +73,42 @@
     let html5QrCode;
     let scanning = false;
 
-    async function startScanner() {
-      if (scanning) return;
+    function startScanner() {
+  const qrRegion = document.getElementById("scanner-container");
+  html5QrCode = new Html5Qrcode("scanner-container");
 
-      scanning = true;
-      const resultElem = document.getElementById("result");
-      resultElem.innerText = "⏳ Запуск камеры...";
+  Html5Qrcode.getCameras().then(devices => {
+    if (devices && devices.length) {
+      // Используем заднюю камеру, если найдена
+      const backCamera = devices.find(device => device.label.toLowerCase().includes('back')) || devices[0];
+      const cameraId = backCamera.id;
 
-      try {
-        const qrRegion = document.getElementById("scanner-container");
-        html5QrCode = new Html5Qrcode("scanner-container");
+      html5QrCode.start(
+        cameraId,
+        {
+          fps: 10,
+          qrbox: 250
+        },
+        qrCodeMessage => {
+          document.getElementById("result").innerText = `QR: ${qrCodeMessage}`;
+          html5QrCode.stop();
 
-        const devices = await Html5Qrcode.getCameras();
-        if (!devices || devices.length === 0) {
-          resultElem.innerText = "❌ Камера не найдена";
-          scanning = false;
-          return;
+          // Отправка QR кода обратно в Telegram WebApp
+          if (window.Telegram && Telegram.WebApp) {
+            Telegram.WebApp.sendData(qrCodeMessage);
+          }
+        },
+        error => {
+          // Периодические ошибки — можно игнорировать
         }
-
-        const backCamera = devices.find(device => device.label.toLowerCase().includes('back')) || devices[0];
-        const cameraId = backCamera.id;
-
-
-        await html5QrCode.start(
-          cameraId,
-          { fps: 10, qrbox: 250 },
-          async qrCodeMessage => {
-            resultElem.innerText = `📦 QR-код: ${qrCodeMessage}`;
-            await html5QrCode.stop();
-            scanning = false;
-
-            if (window.Telegram && Telegram.WebApp) {
-              Telegram.WebApp.sendData(qrCodeMessage);
-            }
-          },
-          error => {}
-        );
-      } catch (err) {
-        resultElem.innerText = `❌ Ошибка: ${err}`;
-        scanning = false;
-      }
+      ).catch(err => {
+        document.getElementById("result").innerText = `Ошибка запуска камеры: ${err}`;
+      });
     }
+  }).catch(err => {
+    document.getElementById("result").innerText = `Ошибка доступа к камере: ${err}`;
+  });
+}
   </script>
 </body>
 </html>
