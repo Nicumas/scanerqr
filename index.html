@@ -94,7 +94,7 @@
         { facingMode: "environment" }, 
         config,
         qrCodeMessage => {
-          document.getElementById("result").innerText = ✅ QR-код: ${qrCodeMessage};
+          document.getElementById("result").innerText = `✅ QR-код: ${qrCodeMessage}`;
           html5QrCode.stop().catch(() => {});
           scanning = false;
           if (window.Telegram && Telegram.WebApp) {
@@ -106,7 +106,7 @@
           document.getElementById("result").innerText = "🔍 Сканирую...";
         }
       ).catch(err => {
-        document.getElementById("result").innerText = ❌ Ошибка камеры: ${err};
+        document.getElementById("result").innerText = `❌ Ошибка камеры: ${err}`;
         scanning = false;
       });
     }
