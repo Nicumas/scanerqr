@@ -66,8 +66,8 @@
 <body>
   <h1>Сканируй чек — получи кофе ☕</h1>
   <div id="scanner-container"></div>
-  <div id="result">Нажмите «Начать сканирование»</div>
-  <button class="btn" onclick="startScanner()">Начать сканирование</button>
+  <div id="result">Инициализация сканера...</div>
+  <button class="btn" onclick="startScanner()">Перезапустить сканирование</button>
 
   <!-- html5-qrcode -->
   <script src="https://unpkg.com/html5-qrcode@2.3.7" type="text/javascript"></script>
@@ -76,58 +76,41 @@
     let scanning = false;
 
     async function startScanner() {
-      if (scanning) return;
-      scanning = true;
-
-      const resultElem = document.getElementById("result");
-      resultElem.innerText = "⏳ Инициализация камеры...";
-
-      try {
-        html5QrCode = new Html5Qrcode("scanner-container");
-
-        const devices = await Html5Qrcode.getCameras();
-        let cameraConfig;
-
-        if (devices && devices.length) {
-          // Ищем заднюю камеру по метке
-          const back = devices.find(d => d.label.toLowerCase().includes('back'));
-          if (back) {
-            cameraConfig = { deviceId: { exact: back.id } };
-          } else {
-            // Фолбэк на facingMode
-            cameraConfig = { facingMode: "environment" };
-          }
-        } else {
-          // Если нет списка камер — сразу пробуем среду
-          cameraConfig = { facingMode: "environment" };
-        }
-
-        // Опции сканера
-        const config = { fps: 10, qrbox: 250 };
-
-        // Запускаем
-        await html5QrCode.start(
-          cameraConfig,
-          config,
-          qrCodeMessage => {
-            resultElem.innerText = `✅ QR-код: ${qrCodeMessage}`;
-            html5QrCode.stop().catch(() => {});
-            scanning = false;
-            // отправляем данные боту
-            if (window.Telegram && Telegram.WebApp) {
-              Telegram.WebApp.sendData(qrCodeMessage);
-            }
-          },
-          () => {
-            resultElem.innerText = "🔍 Сканирую...";
-          }
-        );
-
-      } catch (err) {
-        resultElem.innerText = `❌ Ошибка камеры: ${err}`;
-        scanning = false;
+      if (scanning) {
+        // если уже сканируем, сбросим старый
+        await html5QrCode.stop().catch(() => {});
       }
+      scanning = true;
+      document.getElementById("result").innerText = "⏳ Подготовка камеры...";
+
+      html5QrCode = new Html5Qrcode("scanner-container");
+
+      const config = { fps: 60, qrbox: 250 };
+      // пусть сам библиотечный метод подберёт подходящую камеру (включая "environment")
+      html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        qrCodeMessage => {
+          document.getElementById("result").innerText = `✅ QR-код: ${qrCodeMessage}`;
+          html5QrCode.stop().catch(() => {});
+          scanning = false;
+          if (window.Telegram && Telegram.WebApp) {
+            Telegram.WebApp.sendData(qrCodeMessage);
+          }
+        },
+        errorMessage => {
+          document.getElementById("result").innerText = "🔍 Сканирую...";
+        }
+      ).catch(err => {
+        document.getElementById("result").innerText = `❌ Ошибка камеры: ${err}`;
+        scanning = false;
+      });
     }
+
+    // Автоматический старт при загрузке страницы
+    window.addEventListener('DOMContentLoaded', () => {
+      startScanner();
+    });
   </script>
 </body>
 </html>
