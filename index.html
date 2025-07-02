@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Сканер QR для кофе</title>
+  <title>Кофе QR</title>
   <style>
     :root {
       --bg-color: #f6f2ec;
@@ -21,14 +21,16 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      height: 100vh;
+      justify-content: flex-start;
+      min-height: 100vh;
+      padding: 20px;
     }
 
     h1 {
       color: var(--accent-color);
       font-size: 2em;
       margin-bottom: 0.5em;
+      text-align: center;
     }
 
     #scanner-container {
@@ -38,12 +40,13 @@
       border-radius: 12px;
       overflow: hidden;
       background: #fff;
+      margin-bottom: 1em;
     }
 
     #result {
-      margin-top: 1em;
       font-size: 1.2em;
       text-align: center;
+      margin-top: 0.5em;
     }
 
     .btn {
@@ -55,54 +58,73 @@
       font-size: 16px;
       border-radius: 8px;
       cursor: pointer;
-      margin-top: 1em;
+      margin: 0.5em;
     }
 
     .btn:hover {
       background-color: var(--button-hover);
     }
+
+    #user-qr {
+      margin-top: 1em;
+      text-align: center;
+    }
+
+    #user-qr img {
+      margin-top: 10px;
+      width: 200px;
+      height: 200px;
+    }
   </style>
 </head>
 <body>
-  <h1>Сканируй чек — получи кофе ☕</h1>
+  <h1>Сканируй чек или QR клиента ☕</h1>
   <div id="scanner-container"></div>
-  <div id="result">Нажмите «Перезапустить сканирование»</div>
+  <div id="result">Нажмите кнопку ниже, чтобы начать</div>
   <button class="btn" onclick="startScanner()">Перезапустить сканирование</button>
+  <button class="btn" onclick="generateClientQr()">Показать мой QR-код</button>
+  <div id="user-qr"></div>
 
   <!-- html5-qrcode -->
   <script src="https://unpkg.com/html5-qrcode@2.3.7"></script>
+  <!-- QRCode generation -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
   <script>
     let html5QrCode;
-    let scanning = false
+    let scanning = false;
 
     async function startScanner() {
       if (scanning) {
-        // Останавливаем предыдущий сканер, если он был
         await html5QrCode.stop().catch(() => {});
       }
+
       scanning = true;
       document.getElementById("result").innerText = "⏳ Подготовка камеры...";
-
       html5QrCode = new Html5Qrcode("scanner-container");
 
-      // FPS снижено до 10 для стабильной работы на мобильных
       const config = { fps: 10, qrbox: 250 };
 
       html5QrCode.start(
-        { facingMode: "environment" }, 
+        { facingMode: "environment" },
         config,
         qrCodeMessage => {
           document.getElementById("result").innerText = `✅ QR-код: ${qrCodeMessage}`;
           html5QrCode.stop().catch(() => {});
           scanning = false;
+
           if (window.Telegram && Telegram.WebApp) {
-            Telegram.WebApp.sendData(qrCodeMessage);
+            if (qrCodeMessage.startsWith("client_uid=")) {
+              const clientId = qrCodeMessage.split("=")[1];
+              Telegram.WebApp.sendData(JSON.stringify({ type: "client", uid: clientId }));
+            } else {
+              Telegram.WebApp.sendData(JSON.stringify({ type: "receipt", data: qrCodeMessage }));
+            }
           }
         },
         () => {
-          // Первый раз меняем текст, потом оставляем сканер работать тихо
           document.getElementById("result").innerText = "🔍 Сканирую...";
         }
       ).catch(err => {
@@ -111,8 +133,30 @@
       });
     }
 
-    // Запуск только по нажатию, т.к. многие браузеры блокируют камеру без жеста пользователя
-    // window.addEventListener('DOMContentLoaded', startScanner);
+    function generateClientQr() {
+      const tgUser = Telegram.WebApp?.initDataUnsafe?.user;
+      const qrContainer = document.getElementById("user-qr");
+
+      if (!tgUser?.id) {
+        qrContainer.innerText = "⚠️ Не удалось получить Telegram ID";
+        return;
+      }
+
+      const qrValue = `client_uid=${tgUser.id}`;
+
+      QRCode.toDataURL(qrValue, { width: 200 }, function (err, url) {
+        if (err) {
+          qrContainer.innerText = "❌ Ошибка генерации QR";
+          return;
+        }
+
+        qrContainer.innerHTML = `
+          <p>Покажите этот QR-код кассиру:</p>
+          <img src="${url}" alt="QR клиента" />
+          <p style="font-size: 0.9em; word-break: break-word;">${qrValue}</p>
+        `;
+      });
+    }
   </script>
 </body>
 </html>
