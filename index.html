@@ -28,7 +28,32 @@
       top: 0;
       left: 0;
       z-index: 1;
-      /* Зеркальное отображение УБРАНО */
+      /* Гарантированно скрываем элементы управления */
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+    }
+
+    /* Усиленные стили для скрытия элементов управления */
+    video::-webkit-media-controls {
+      display: none !important;
+      -webkit-appearance: none;
+    }
+    video::-webkit-media-controls-panel,
+    video::-webkit-media-controls-play-button,
+    video::-webkit-media-controls-start-playback-button,
+    video::-webkit-media-controls-overlay-play-button,
+    video::-webkit-media-controls-mute-button,
+    video::-webkit-media-controls-toggle-closed-captions-button,
+    video::-webkit-media-controls-fullscreen-button,
+    video::-webkit-media-controls-timeline,
+    video::-webkit-media-controls-volume-slider {
+      display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
+      width: 0 !important;
+      height: 0 !important;
     }
 
     #overlay {
@@ -75,14 +100,9 @@
       font-size: 1.5em;
       margin-right: 10px;
     }
-    
-    video::-webkit-media-controls {
-      display: none !important;
-    }
   </style>
 </head>
 <body>
-  <!-- Кнопка запуска УДАЛЕНА -->
   <video id="video" autoplay muted playsinline></video>
   <div id="overlay">
     <div class="header"><span class="coffee-icon">☕</span> Сканируйте QR-чек</div>
@@ -94,6 +114,12 @@
     const msg = document.getElementById('msg');
     const overlay = document.getElementById('overlay');
 
+    // Гарантированное скрытие элементов управления
+    video.controls = false;
+    video.disablePictureInPicture = true;
+    video.setAttribute('controlslist', 'nodownload nofullscreen noremoteplayback');
+    video.setAttribute('disablepictureinpicture', 'true');
+    
     // Автоматический запуск камеры при загрузке
     window.addEventListener("load", async () => {
       if (window.Telegram?.WebApp) {
@@ -138,7 +164,6 @@
         canvas.height = video.videoHeight;
         
         context.clearRect(0, 0, canvas.width, canvas.height);
-        // Рисуем изображение БЕЗ зеркального отражения
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
@@ -150,7 +175,6 @@
           scanActive = false;
           msg.textContent = "✅ Чек распознан!";
           
-          // Для чеков нам нужна строка, начинающаяся с "t="
           if (code.data.startsWith("t=")) {
             if (window.Telegram?.WebApp) {
               Telegram.WebApp.sendData(code.data);
@@ -170,8 +194,15 @@
     }
 
     // Предотвращаем появление стандартных элементов управления видео
-    video.addEventListener('contextmenu', e => e.preventDefault());
-    video.controls = false;
+    video.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      return false;
+    });
+    
+    // Дополнительная защита от появления элементов управления
+    video.addEventListener('play', () => {
+      video.controls = false;
+    });
   </script>
 </body>
 </html>
