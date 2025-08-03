@@ -5,7 +5,6 @@
   <title>Сканировать QR-чек</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   
-  <!-- Исправленные ссылки -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   
@@ -29,7 +28,7 @@
       top: 0;
       left: 0;
       z-index: 1;
-      transform: scaleX(-1); /* Зеркальное отображение для естественного вида */
+/*       transform: scaleX(-1); /* Зеркальное отображение сохранено */ */
     }
 
     #overlay {
@@ -64,7 +63,7 @@
       z-index: 10;
       padding: 15px 30px;
       font-size: 1.2em;
-      background: #6f4e37; /* Кофейный цвет */
+      background: #6f4e37;
       color: white;
       border: none;
       border-radius: 30px;
@@ -94,27 +93,8 @@
       margin-right: 10px;
     }
     
-    /* Анимация сканирования */
-    .scan-line {
-      position: absolute;
-      top: 20%;
-      left: 10%;
-      width: 80%;
-      height: 3px;
-      background: #6f4e37;
-      box-shadow: 0 0 10px rgba(111, 78, 55, 0.8);
-      z-index: 3;
-      animation: scan 2.5s infinite linear;
-      border-radius: 100%;
-    }
+    /* УДАЛЕНА АНИМАЦИЯ СКАН-ЛИНИИ */
     
-    @keyframes scan {
-      0% { top: 20%; }
-      50% { top: 80%; }
-      100% { top: 20%; }
-    }
-    
-    /* Скрываем элементы управления видео */
     video::-webkit-media-controls {
       display: none !important;
     }
@@ -126,7 +106,7 @@
   <div id="overlay" class="hidden">
     <div class="header"><span class="coffee-icon">☕</span> Сканируйте QR-чек</div>
     <div id="msg">Наведите камеру на QR-код в чеке</div>
-    <div class="scan-line"></div>
+    <!-- УДАЛЕН ЭЛЕМЕНТ SCAN-LINE -->
   </div>
 
   <script>
@@ -135,7 +115,6 @@
     const startButton = document.getElementById('startButton');
     const overlay = document.getElementById('overlay');
 
-    // Для обычного браузера показываем кнопку
     if (!window.Telegram?.WebApp) {
       startButton.classList.remove('hidden');
     }
@@ -159,13 +138,11 @@
         video.classList.remove('hidden');
         overlay.classList.remove('hidden');
         
-        // Принудительно запускаем видео
         video.play().catch(e => {
           console.log("Video play error:", e);
           msg.textContent = "❌ Ошибка запуска камеры";
         });
         
-        // Запускаем сканирование после загрузки метаданных
         video.onloadedmetadata = () => {
           requestAnimationFrame(scanFrame);
         };
@@ -189,7 +166,11 @@
         canvas.height = video.videoHeight;
         
         context.clearRect(0, 0, canvas.width, canvas.height);
+        // Зеркалирование при обработке кадра
+        context.translate(canvas.width, 0);
+        context.scale(-1, 1);
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        context.setTransform(1, 0, 0, 1, 0, 0); // Сброс трансформации
 
         const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
         const code = jsQR(imgData.data, canvas.width, canvas.height, {
@@ -200,7 +181,6 @@
           scanActive = false;
           msg.textContent = "✅ Чек распознан!";
           
-          // Для чеков нам нужна строка, начинающаяся с "t="
           if (code.data.startsWith("t=")) {
             if (window.Telegram?.WebApp) {
               Telegram.WebApp.sendData(code.data);
@@ -226,7 +206,6 @@
       }
     });
     
-    // Предотвращаем появление стандартных элементов управления видео
     video.addEventListener('contextmenu', e => e.preventDefault());
     video.controls = false;
   </script>
