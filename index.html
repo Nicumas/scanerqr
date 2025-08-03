@@ -28,7 +28,7 @@
       top: 0;
       left: 0;
       z-index: 1;
-/*       transform: scaleX(-1); /* Зеркальное отображение сохранено */ */
+      /* Зеркальное отображение УБРАНО */
     }
 
     #overlay {
@@ -58,23 +58,6 @@
       font-weight: 500;
     }
 
-    #startButton {
-      position: absolute;
-      z-index: 10;
-      padding: 15px 30px;
-      font-size: 1.2em;
-      background: #6f4e37;
-      color: white;
-      border: none;
-      border-radius: 30px;
-      cursor: pointer;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      font-weight: bold;
-    }
-
     .hidden {
       display: none;
     }
@@ -93,38 +76,30 @@
       margin-right: 10px;
     }
     
-    /* УДАЛЕНА АНИМАЦИЯ СКАН-ЛИНИИ */
-    
     video::-webkit-media-controls {
       display: none !important;
     }
   </style>
 </head>
 <body>
-  <button id="startButton">Запустить сканер</button>
-  <video id="video" autoplay muted playsinline class="hidden"></video>
-  <div id="overlay" class="hidden">
+  <!-- Кнопка запуска УДАЛЕНА -->
+  <video id="video" autoplay muted playsinline></video>
+  <div id="overlay">
     <div class="header"><span class="coffee-icon">☕</span> Сканируйте QR-чек</div>
     <div id="msg">Наведите камеру на QR-код в чеке</div>
-    <!-- УДАЛЕН ЭЛЕМЕНТ SCAN-LINE -->
   </div>
 
   <script>
     const video = document.getElementById('video');
     const msg = document.getElementById('msg');
-    const startButton = document.getElementById('startButton');
     const overlay = document.getElementById('overlay');
 
-    if (!window.Telegram?.WebApp) {
-      startButton.classList.remove('hidden');
-    }
-
-    startButton.addEventListener('click', async () => {
-      startButton.classList.add('hidden');
-      startCamera();
-    });
-
-    async function startCamera() {
+    // Автоматический запуск камеры при загрузке
+    window.addEventListener("load", async () => {
+      if (window.Telegram?.WebApp) {
+        Telegram.WebApp.ready();
+      }
+      
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { 
@@ -135,8 +110,6 @@
         });
         
         video.srcObject = stream;
-        video.classList.remove('hidden');
-        overlay.classList.remove('hidden');
         
         video.play().catch(e => {
           console.log("Video play error:", e);
@@ -150,9 +123,8 @@
       } catch (err) {
         console.error('Camera error:', err);
         msg.textContent = '🚫 Ошибка доступа к камере';
-        startButton.classList.remove('hidden');
       }
-    }
+    });
 
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
@@ -166,11 +138,8 @@
         canvas.height = video.videoHeight;
         
         context.clearRect(0, 0, canvas.width, canvas.height);
-        // Зеркалирование при обработке кадра
-        context.translate(canvas.width, 0);
-        context.scale(-1, 1);
+        // Рисуем изображение БЕЗ зеркального отражения
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        context.setTransform(1, 0, 0, 1, 0, 0); // Сброс трансформации
 
         const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
         const code = jsQR(imgData.data, canvas.width, canvas.height, {
@@ -181,6 +150,7 @@
           scanActive = false;
           msg.textContent = "✅ Чек распознан!";
           
+          // Для чеков нам нужна строка, начинающаяся с "t="
           if (code.data.startsWith("t=")) {
             if (window.Telegram?.WebApp) {
               Telegram.WebApp.sendData(code.data);
@@ -199,13 +169,7 @@
       }
     }
 
-    window.addEventListener("load", () => {
-      if (window.Telegram?.WebApp) {
-        Telegram.WebApp.ready();
-        startCamera();
-      }
-    });
-    
+    // Предотвращаем появление стандартных элементов управления видео
     video.addEventListener('contextmenu', e => e.preventDefault());
     video.controls = false;
   </script>
