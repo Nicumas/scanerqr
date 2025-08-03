@@ -2,116 +2,233 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Сканер QR для кофе</title>
+  <title>Сканировать QR-чек</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  
+  <!-- Исправленные ссылки -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  
   <style>
-    :root {
-      --bg-color: #f6f2ec;
-      --accent-color: #6f4e37;
-      --text-color: #3b2e2a;
-      --button-color: #a9745b;
-      --button-hover: #8b5e45;
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      position: fixed;
+      font-family: 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+      transform: scaleX(-1); /* Зеркальное отображение для естественного вида */
     }
 
-    body {
-      margin: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: var(--bg-color);
-      color: var(--text-color);
+    #overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
       display: flex;
       flex-direction: column;
+      justify-content: flex-start;
       align-items: center;
-      justify-content: center;
-      height: 100vh;
-      text-align: center; /* Добавлено для глобального выравнивания */
+      padding-top: 20px;
+      background: rgba(0,0,0,0.6);
+      pointer-events: none;
     }
 
-    h1 {
-      color: var(--accent-color);
-      font-size: 2em;
-      margin-bottom: 0.5em;
+    #msg {
+      font-size: 1.5em;
+      color: #fff;
+      text-align: center;
+      background: rgba(0,0,0,0.5);
+      padding: 10px 20px;
+      border-radius: 10px;
+      margin-top: 20px;
+      font-weight: 500;
     }
 
-    #scanner-container {
-      width: 300px;
-      height: 300px;
-      border: 4px solid var(--accent-color);
-      border-radius: 12px;
-      overflow: hidden;
-      background: #fff;
-      margin: 1em 0; /* Добавлен отступ сверху и снизу */
-    }
-
-    #result {
-      margin-top: 0.5em;
+    #startButton {
+      position: absolute;
+      z-index: 10;
+      padding: 15px 30px;
       font-size: 1.2em;
-      text-align: center;
-      min-height: 1.5em; /* Гарантирует место для текста */
-    }
-
-    .btn {
-      background-color: var(--button-color);
-      border: none;
+      background: #6f4e37; /* Кофейный цвет */
       color: white;
-      padding: 12px 24px;
-      text-align: center;
-      font-size: 16px;
-      border-radius: 8px;
+      border: none;
+      border-radius: 30px;
       cursor: pointer;
-      margin: 0.5em 0; /* Отрегулирован отступ */
-      width: 300px; /* Фиксированная ширина как у сканера */
-      box-sizing: border-box;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      font-weight: bold;
     }
 
-    .btn:hover {
-      background-color: var(--button-hover);
+    .hidden {
+      display: none;
+    }
+    
+    .header {
+      color: white;
+      font-size: 1.8em;
+      text-align: center;
+      margin-top: 30px;
+      font-weight: bold;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+    
+    .coffee-icon {
+      font-size: 1.5em;
+      margin-right: 10px;
+    }
+    
+    /* Анимация сканирования */
+    .scan-line {
+      position: absolute;
+      top: 20%;
+      left: 10%;
+      width: 80%;
+      height: 3px;
+      background: #6f4e37;
+      box-shadow: 0 0 10px rgba(111, 78, 55, 0.8);
+      z-index: 3;
+      animation: scan 2.5s infinite linear;
+      border-radius: 100%;
+    }
+    
+    @keyframes scan {
+      0% { top: 20%; }
+      50% { top: 80%; }
+      100% { top: 20%; }
+    }
+    
+    /* Скрываем элементы управления видео */
+    video::-webkit-media-controls {
+      display: none !important;
     }
   </style>
 </head>
 <body>
-  <h1>Сканируй чек — получи кофе ☕</h1>
-  <button class="btn" onclick="startScanner()">Отсканировать</button>
-  <div id="scanner-container"></div>
-  <div id="result">Наведите камеру на QR-код</div>
+  <button id="startButton">Запустить сканер</button>
+  <video id="video" autoplay muted playsinline class="hidden"></video>
+  <div id="overlay" class="hidden">
+    <div class="header"><span class="coffee-icon">☕</span> Сканируйте QR-чек</div>
+    <div id="msg">Наведите камеру на QR-код в чеке</div>
+    <div class="scan-line"></div>
+  </div>
 
-  <!-- html5-qrcode -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.7"></script>
-  <!-- Telegram WebApp SDK -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
-    let html5QrCode;
-    let scanning = false
+    const video = document.getElementById('video');
+    const msg = document.getElementById('msg');
+    const startButton = document.getElementById('startButton');
+    const overlay = document.getElementById('overlay');
 
-    async function startScanner() {
-      if (scanning) {
-        await html5QrCode.stop().catch(() => {});
-      }
-      scanning = true;
-      document.getElementById("result").innerText = "⏳ Подготовка камеры...";
-
-      html5QrCode = new Html5Qrcode("scanner-container");
-
-      const config = { fps: 10, qrbox: 250 };
-
-      html5QrCode.start(
-        { facingMode: "environment" }, 
-        config,
-        qrCodeMessage => {
-          document.getElementById("result").innerText = `✅ QR-код: ${qrCodeMessage}`;
-          html5QrCode.stop().catch(() => {});
-          scanning = false;
-          if (window.Telegram && Telegram.WebApp) {
-            Telegram.WebApp.sendData(qrCodeMessage);
-          }
-        },
-        () => {
-          document.getElementById("result").innerText = "🔍 Сканирую...";
-        }
-      ).catch(err => {
-        document.getElementById("result").innerText = `❌ Ошибка камеры: ${err}`;
-        scanning = false;
-      });
+    // Для обычного браузера показываем кнопку
+    if (!window.Telegram?.WebApp) {
+      startButton.classList.remove('hidden');
     }
+
+    startButton.addEventListener('click', async () => {
+      startButton.classList.add('hidden');
+      startCamera();
+    });
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { 
+            facingMode: "environment", 
+            width: { min: 640, ideal: 1280 }, 
+            height: { min: 480, ideal: 720 } 
+          }
+        });
+        
+        video.srcObject = stream;
+        video.classList.remove('hidden');
+        overlay.classList.remove('hidden');
+        
+        // Принудительно запускаем видео
+        video.play().catch(e => {
+          console.log("Video play error:", e);
+          msg.textContent = "❌ Ошибка запуска камеры";
+        });
+        
+        // Запускаем сканирование после загрузки метаданных
+        video.onloadedmetadata = () => {
+          requestAnimationFrame(scanFrame);
+        };
+        
+      } catch (err) {
+        console.error('Camera error:', err);
+        msg.textContent = '🚫 Ошибка доступа к камере';
+        startButton.classList.remove('hidden');
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    let scanActive = true;
+
+    function scanFrame() {
+      if (!scanActive) return;
+      
+      if (video.readyState >= video.HAVE_METADATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imgData.data, canvas.width, canvas.height, {
+          inversionAttempts: "dontInvert",
+        });
+
+        if (code) {
+          scanActive = false;
+          msg.textContent = "✅ Чек распознан!";
+          
+          // Для чеков нам нужна строка, начинающаяся с "t="
+          if (code.data.startsWith("t=")) {
+            if (window.Telegram?.WebApp) {
+              Telegram.WebApp.sendData(code.data);
+            } else {
+              msg.textContent = `QR-код: ${code.data}`;
+              setTimeout(() => scanActive = true, 2000);
+            }
+          } else {
+            msg.textContent = "❌ Это не QR-чек";
+            setTimeout(() => scanActive = true, 2000);
+          }
+        }
+      }
+      if (scanActive) {
+        requestAnimationFrame(scanFrame);
+      }
+    }
+
+    window.addEventListener("load", () => {
+      if (window.Telegram?.WebApp) {
+        Telegram.WebApp.ready();
+        startCamera();
+      }
+    });
+    
+    // Предотвращаем появление стандартных элементов управления видео
+    video.addEventListener('contextmenu', e => e.preventDefault());
+    video.controls = false;
   </script>
 </body>
 </html>
