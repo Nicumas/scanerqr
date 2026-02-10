@@ -2,207 +2,206 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <title>Сканировать QR-чек</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Сканер QR-чека</title>
   <style>
-    html, body {
+    :root {
+      --bg-color: #f6f2ec;
+      --accent-color: #6f4e37;
+      --text-color: #3b2e2a;
+      --button-color: #a9745b;
+      --button-hover: #8b5e45;
+    }
+
+    body {
       margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      background: #000;
-      overflow: hidden;
-      position: fixed;
-      font-family: 'Segoe UI', Roboto, sans-serif;
-    }
-    
-    #video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: 1;
-      /* Гарантированно скрываем элементы управления */
-      -webkit-appearance: none;
-      -moz-appearance: none;
-      appearance: none;
-    }
-
-    /* Усиленные стили для скрытия элементов управления */
-    video::-webkit-media-controls {
-      display: none !important;
-      -webkit-appearance: none;
-    }
-    video::-webkit-media-controls-panel,
-    video::-webkit-media-controls-play-button,
-    video::-webkit-media-controls-start-playback-button,
-    video::-webkit-media-controls-overlay-play-button,
-    video::-webkit-media-controls-mute-button,
-    video::-webkit-media-controls-toggle-closed-captions-button,
-    video::-webkit-media-controls-fullscreen-button,
-    video::-webkit-media-controls-timeline,
-    video::-webkit-media-controls-volume-slider {
-      display: none !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
-      visibility: hidden !important;
-      width: 0 !important;
-      height: 0 !important;
-    }
-
-    #overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 2;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
       display: flex;
       flex-direction: column;
-      justify-content: flex-start;
       align-items: center;
-      padding-top: 20px;
-      background: rgba(0,0,0,0.6);
-      pointer-events: none;
-    }
-
-    #msg {
-      font-size: 1.5em;
-      color: #fff;
+      justify-content: center;
+      min-height: 100vh;
       text-align: center;
-      background: rgba(0,0,0,0.5);
-      padding: 10px 20px;
-      border-radius: 10px;
-      margin-top: 20px;
-      font-weight: 500;
+      padding: 16px;
+      box-sizing: border-box;
     }
 
-    .hidden {
-      display: none;
+    h1 {
+      color: var(--accent-color);
+      font-size: 1.6em;
+      margin-bottom: 0.8em;
     }
-    
-    .header {
+
+    #scanner-container {
+      width: 320px;
+      max-width: 90vw;
+      height: 320px;
+      border: 4px solid var(--accent-color);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+      margin: 1em 0;
+    }
+
+    #result {
+      margin-top: 0.6em;
+      font-size: 1.05em;
+      text-align: center;
+      min-height: 1.8em;
+      max-width: 90vw;
+      word-break: break-word;
+    }
+
+    .btn {
+      background-color: var(--button-color);
+      border: none;
       color: white;
-      font-size: 1.8em;
+      padding: 12px 24px;
       text-align: center;
-      margin-top: 30px;
-      font-weight: bold;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 0.5em 0;
+      width: 320px;
+      max-width: 90vw;
+      box-sizing: border-box;
     }
-    
-    .coffee-icon {
-      font-size: 1.5em;
-      margin-right: 10px;
+
+    .btn:hover {
+      background-color: var(--button-hover);
     }
   </style>
 </head>
 <body>
-  <video id="video" autoplay muted playsinline></video>
-  <div id="overlay">
-    <div class="header"><span class="coffee-icon">☕</span> Сканируйте QR-чек</div>
-    <div id="msg">Наведите камеру на QR-код в чеке</div>
-  </div>
+  <h1>Сканируйте QR-чек</h1>
+  <button class="btn" onclick="startScanner()">Отсканировать</button>
+  <div id="scanner-container"></div>
+  <div id="result">Наведите камеру на QR-код чека</div>
 
+  <script src="https://unpkg.com/html5-qrcode@2.3.7"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
-    const video = document.getElementById('video');
-    const msg = document.getElementById('msg');
-    const overlay = document.getElementById('overlay');
+    let html5QrCode = null;
+    let scanning = false;
+    const REQUIRED_KEYS = ["t", "s", "fn", "i", "fp", "n"];
 
-    // Гарантированное скрытие элементов управления
-    video.controls = false;
-    video.disablePictureInPicture = true;
-    video.setAttribute('controlslist', 'nodownload nofullscreen noremoteplayback');
-    video.setAttribute('disablepictureinpicture', 'true');
-    
-    // Автоматический запуск камеры при загрузке
-    window.addEventListener("load", async () => {
-      if (window.Telegram?.WebApp) {
-        Telegram.WebApp.ready();
-      }
-      
+    function normalizeReceiptQuery(queryString) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            facingMode: "environment", 
-            width: { min: 640, ideal: 1280 }, 
-            height: { min: 480, ideal: 720 } 
+        const params = new URLSearchParams(queryString);
+        const normalized = new URLSearchParams();
+
+        for (const key of REQUIRED_KEYS) {
+          let value = params.get(key);
+          if (!value && key === "i") {
+            value = params.get("fd");
           }
-        });
-        
-        video.srcObject = stream;
-        
-        video.play().catch(e => {
-          console.log("Video play error:", e);
-          msg.textContent = "❌ Ошибка запуска камеры";
-        });
-        
-        video.onloadedmetadata = () => {
-          requestAnimationFrame(scanFrame);
-        };
-        
-      } catch (err) {
-        console.error('Camera error:', err);
-        msg.textContent = '🚫 Ошибка доступа к камере';
-      }
-    });
-
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    let scanActive = true;
-
-    function scanFrame() {
-      if (!scanActive) return;
-      
-      if (video.readyState >= video.HAVE_METADATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imgData.data, canvas.width, canvas.height, {
-          inversionAttempts: "dontInvert",
-        });
-
-        if (code) {
-          scanActive = false;
-          msg.textContent = "✅ Чек распознан!";
-          
-          if (code.data.startsWith("t=")) {
-            if (window.Telegram?.WebApp) {
-              Telegram.WebApp.sendData(code.data);
-            } else {
-              msg.textContent = `QR-код: ${code.data}`;
-              setTimeout(() => scanActive = true, 2000);
-            }
-          } else {
-            msg.textContent = "❌ Это не QR-чек";
-            setTimeout(() => scanActive = true, 2000);
+          if (!value) {
+            return null;
           }
+          normalized.set(key, value);
         }
-      }
-      if (scanActive) {
-        requestAnimationFrame(scanFrame);
+        return normalized.toString();
+      } catch (_) {
+        return null;
       }
     }
 
-    // Предотвращаем появление стандартных элементов управления видео
-    video.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      return false;
-    });
-    
-    // Дополнительная защита от появления элементов управления
-    video.addEventListener('play', () => {
-      video.controls = false;
-    });
+    function extractReceiptPayload(rawValue) {
+      if (!rawValue) return null;
+      const value = String(rawValue).trim();
+      if (!value) return null;
+
+      if (value.startsWith("t=")) {
+        return normalizeReceiptQuery(value);
+      }
+
+      if (value.startsWith("http://") || value.startsWith("https://")) {
+        try {
+          const url = new URL(value);
+          const fromUrl = normalizeReceiptQuery(url.search.slice(1));
+          if (fromUrl) return fromUrl;
+        } catch (_) {}
+      }
+
+      if (value.includes("?")) {
+        const fromQuestion = normalizeReceiptQuery(value.split("?", 2)[1]);
+        if (fromQuestion) return fromQuestion;
+      }
+
+      if (value.startsWith("qr=")) {
+        try {
+          const decoded = decodeURIComponent(value.slice(3));
+          return extractReceiptPayload(decoded);
+        } catch (_) {}
+      }
+
+      try {
+        const obj = JSON.parse(value);
+        if (obj && typeof obj === "object") {
+          const normalized = new URLSearchParams();
+          for (const key of REQUIRED_KEYS) {
+            let field = obj[key];
+            if (!field && key === "i") {
+              field = obj.fd;
+            }
+            if (!field) {
+              return null;
+            }
+            normalized.set(key, String(field));
+          }
+          return normalized.toString();
+        }
+      } catch (_) {}
+
+      return null;
+    }
+
+    async function startScanner() {
+      if (scanning && html5QrCode) {
+        await html5QrCode.stop().catch(() => {});
+      }
+
+      scanning = true;
+      document.getElementById("result").innerText = "Подготовка камеры...";
+
+      if (window.Telegram && Telegram.WebApp) {
+        Telegram.WebApp.ready();
+      }
+
+      html5QrCode = new Html5Qrcode("scanner-container");
+      const config = { fps: 10, qrbox: 250 };
+
+      html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText) => {
+          const payload = extractReceiptPayload(decodedText);
+          if (!payload) {
+            document.getElementById("result").innerText = "Это не QR-чек ФНС, сканирую дальше...";
+            return;
+          }
+
+          document.getElementById("result").innerText = "Чек распознан, отправляю в бот...";
+          html5QrCode.stop().catch(() => {});
+          scanning = false;
+
+          if (window.Telegram && Telegram.WebApp) {
+            Telegram.WebApp.sendData(payload);
+            return;
+          }
+
+          document.getElementById("result").innerText = `Распознан чек: ${payload}`;
+        },
+        () => {
+          document.getElementById("result").innerText = "Сканирую...";
+        }
+      ).catch((err) => {
+        document.getElementById("result").innerText = `Ошибка камеры: ${err}`;
+        scanning = false;
+      });
+    }
   </script>
 </body>
 </html>
